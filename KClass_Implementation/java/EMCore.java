@@ -62,11 +62,51 @@ public class EMCore {
 	}
 	
 	// Implement by Pansa
-	public static ArrayList<Integer> UpperBoundReduction(ArrayList<Integer> inputList)
+	public static ArrayList<Long> UpperBoundReduction(ArrayList<Long> inputList)
 	{
-		ArrayList<Integer> rtnList = new ArrayList<Integer>();
-		
-		// TO DO
+		ArrayList<Long> rtnList = new ArrayList<>();
+		// TODO
+		for(Long v : inputList) {
+			ArrayList<Long> Z = new ArrayList<>();
+			Map<String,Object> par = new HashMap<>();
+			par.put("id",v);
+			
+			// TODO get upper bound of v
+			par.put("d", 3);
+			Result res = graphDB.execute("MATCH (v)--(v1) "
+					+ "WITH ID(v1) AS id, size((v1)--()) AS degree "
+	    			+ "WHERE id = $id AND degree>=$d "
+	    			+ "RETURN id, degree "
+	    			+ "ORDER BY degree ASC",par);
+			while(res.hasNext()) {
+				Map<String,Object> resMap = res.next();
+//				System.out.println(resMap);
+				Z.add((Long)resMap.get("id"));
+			}
+			res = graphDB.execute("MATCH (v) "
+					+ "WITH ID(v) AS id, size((v)--()) AS degree, v.KClassUpperBound as kcup, v.KClass as kclass "
+	    			+ "WHERE id = $id "
+	    			+ "RETURN id, coalesce(kcup,kclass) as k, degree ",par);
+			Map<String,Object> resMap = res.next();
+			int degree = (int)resMap.get("degree");
+			int k = (int)resMap.get("k");
+			if(degree - Z.size() < k) {
+				int min = Integer.MAX_VALUE;
+				for(int i = 1; i <= Z.size(); i++) {
+					par.put("id", Z.get(i-1));
+					res = graphDB.execute("MATCH (v) "
+							+ "WITH ID(v) AS id, v.KClassUpperBound as kcup, v.KClass as kclass "
+			    			+ "WHERE id = $id "
+			    			+ "RETURN id, coalesce(kcup,kclass) as k",par);
+					int c = Math.max(degree-i, (int)res.next().get("k"));
+					if(c < min)
+						min = c;
+				}
+				k = min;
+				for(int i = 0; i < Z.size(); i++)
+					rtnList.add(Z.get(i));
+			}
+		}
 		
 		return rtnList;
 	}
@@ -90,6 +130,16 @@ public class EMCore {
 		closeDB();
 		
 		System.out.println("Job Completed!");
+	}
+	
+	// To be implemented by Sapan
+	public static void KCoreDecomposition(int mink, int limit, int step) {
+		
+	}
+	
+	// To be implemented by Li
+	public static void ComputeCore(int Kl, int Ku) {
+		
 	}
 
 }
