@@ -5,8 +5,10 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -55,10 +57,76 @@ public class EMCore {
 		graphDB.shutdown();
 	}
 	
-	// Implement by Li
-	public static void computeKClassUpperBound(int KClass, int limit)
+	public static ArrayList<Long> getListSortedByVal(HashMap<Long, Long> hm)
 	{
+		 List<Map.Entry<Long, Long> > list = new LinkedList<Map.Entry<Long, Long> >(hm.entrySet()); 
+		 Collections.sort(list, new Comparator<Map.Entry<Long, Long> >() 
+		 { 
+			 @Override
+			 public int compare(Entry<Long, Long> arg0, Entry<Long, Long> arg1)
+			 {
+				 // TODO Auto-generated method stub
+				 return (arg0.getValue()).compareTo(arg1.getValue()); 
+			 } 
+		 }); 
+		 
+		 ArrayList<Long> rtnList = new ArrayList<Long>();
+		 
+		 for (Map.Entry<Long, Long> item : list) 
+		 { 
+			 rtnList.add(item.getKey()); 
+	     } 
+		 
+		 return rtnList;
+	}
+	
+
+	/**********************************************************************
+	 * 
+	 * Redefine the KClass upper bound for the input graph
+	 * @return None
+	 * 
+	 **********************************************************************/
+	public static void computeKClassUpperBound(ArrayList<Long> inputList, int limit)
+	{
+		// Iterator counter
+		int iter = 0;
 		
+		// Get KClass Upper bound Map for the input vList
+		String query = "MATCH (v) WITH ID(v) as id WHERE id = $id RETURN v.KClassUpperBound AS KCUB";
+		HashMap<String, Object> parameter = new HashMap<String, Object>();
+		HashMap<Long, Long> kcupMap = new HashMap<Long, Long>();
+		ArrayList<Long> curList = new ArrayList<Long> (inputList);
+				
+		// Stop the process the number of iteration hits the given limit
+		while (iter < limit )
+		{
+			// Clear the map
+			kcupMap.clear();
+			
+			// foreach v in the input list
+			for(Long v : curList)
+			{
+				parameter.put("id", v);
+				Result result = graphDB.execute(query, parameter);
+				
+				// Add v's corresponding kClass cup bound to the map
+				while(result.hasNext()) 
+				{
+					Map<String,Object> resMap = result.next();
+					kcupMap.put(v, (Long)resMap.get("KCUB"));
+				}
+			}
+			
+			curList = getListSortedByVal(kcupMap);
+			
+			// Create an empty list
+			ArrayList<Long> nextList = UpperBoundReduction(curList);
+			
+			// For next iteration
+			curList = new ArrayList<Long>(nextList);
+			iter++;
+		}
 	}
 	
 	// Implement by Pansa
@@ -125,7 +193,7 @@ public class EMCore {
 		// Create the graph database with the given source Neo4j path
 		createDB(srcNeo4jFolder);
 		// K-Class upper bound estimation
-		computeKClassUpperBound(KClass, limit);
+		// computeKClassUpperBound(KClass, limit);
 		// Terminate the Graph database service
 		closeDB();
 		
