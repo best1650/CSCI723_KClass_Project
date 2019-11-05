@@ -1,0 +1,3 @@
+run the import data java file with two parameters:
+first paramter is the path of the dataset
+second paramter is the path of the neo4j database
