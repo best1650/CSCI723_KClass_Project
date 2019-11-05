@@ -21,28 +21,8 @@ import org.neo4j.unsafe.batchinsert.BatchInserter;
 import org.neo4j.unsafe.batchinsert.BatchInserters;
 
 public class AnalysisManager {
-
-	public static BatchInserter inserter;
 	
-	public static void initGraphDatabase(String neo4jDb)
-	{
-		try 
-		{
-			inserter = BatchInserters.inserter(new File(neo4jDb));
-		} 
-		catch (IOException e) 
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-	
-	public static void closeGraphDatabase()
-	{
-		inserter.shutdown();
-	}
-	
-	public static void importDataFromFiles(String srcDataPath)
+	public static void importDataFromFiles(String srcDataPath, String neo4jDBPath)
 	{
 		File folder = new File(srcDataPath);
 		String fileName;
@@ -53,24 +33,22 @@ public class AnalysisManager {
 			if(fEntry.isFile())
 			{
 				fileName = fEntry.getName();
-				offset = getGraphDataFromFile(fEntry.getAbsolutePath(), fileName, offset);
+				getGraphDataFromFile(fEntry.getAbsolutePath(), fileName, neo4jDBPath);
 			}
 		}
 	}
 	
-	public static long getGraphDataFromFile(String filePath, String fileName, long offset)
+	public static void getGraphDataFromFile(String filePath, String fileName, String neo4jDBPath)
 	{
-		long curNodeId = -1;
-		int degree = 0;
-		String st;
-		Map<String, Object> attMap = new HashMap<String, Object>();
-		HashSet<Long> nodeList = new HashSet<Long>();
-		
 		try 
 		{
-			File file = new File(filePath); 
-			BufferedReader br = new BufferedReader(new FileReader(file)); 
+			BatchInserter inserter = BatchInserters.inserter(new File(neo4jDBPath + "\\" + fileName));
+			String st;
+			Map<String, Object> attMap = new HashMap<String, Object>();
+			HashSet<Long> nodeList = new HashSet<Long>();
+			BufferedReader br = new BufferedReader(new FileReader(new File(filePath)));
 			
+			// Collect all the nodes
 			while ((st = br.readLine()) != null) 
 			{
 				if(st.contains("#"))
@@ -86,14 +64,18 @@ public class AnalysisManager {
 				nodeList.add(ToNodeId);
 			}
 			
+			// Insert nodes to the neo4j database
 			for (Long node : nodeList)
 			{
-				inserter.createNode((offset + node), attMap, Label.label(fileName));
+				inserter.createNode(node, attMap, Label.label(fileName));
 			}
 			
+			// Reset the file
 			br.close();
-			br = new BufferedReader(new FileReader(file));
+			br = new BufferedReader(new FileReader(new File(filePath))); 
 			
+			// Insert edges
+			long curNodeId = -1, degree = 0;
 			while ((st = br.readLine()) != null) 
 			{
 				if(st.contains("#"))
@@ -107,12 +89,7 @@ public class AnalysisManager {
 				
 				if(fileName.compareTo("Email-Enron.txt") != 0 || FromNodeId > ToNodeId)
 				{
-					inserter.createRelationship(
-							(offset + FromNodeId), 
-							(offset + ToNodeId), 
-							RelationshipType.withName(fileName), 
-							null
-					);
+					inserter.createRelationship(FromNodeId, ToNodeId, RelationshipType.withName(fileName), null);
 				}
 				
 				if (curNodeId != FromNodeId)
@@ -120,10 +97,10 @@ public class AnalysisManager {
 					if(curNodeId != -1)
 					{
 						attMap.clear();
-						attMap.put("origID", curNodeId);
-						attMap.put("KClass", degree);
+						attMap.put("degree", degree);
+						attMap.put("KClass", 0);
 						attMap.put("KClassUpperBound", 0);
-						inserter.setNodeProperties((offset + curNodeId), attMap);
+						inserter.setNodeProperties(curNodeId, attMap);
 						degree = 0;
 					}
 				}
@@ -133,55 +110,46 @@ public class AnalysisManager {
 			}
 			
 			attMap.clear();
-			attMap.put("origID", curNodeId);
-			if(degree == 1)
-			{
-				attMap.put("KClass", degree);
-				attMap.put("KClassUpperBound", 0);
-			}
-			else
-			{
-				attMap.put("KClass", 0);
-				attMap.put("KClassUpperBound", degree);				
-			}
-			inserter.setNodeProperties((offset + curNodeId), attMap);
-
-			br.close();
-		}
-		catch (IOException e)
+			attMap.put("degree", degree);
+			attMap.put("KClass", 0);
+			attMap.put("KClassUpperBound", 0);
+			inserter.setNodeProperties(curNodeId, attMap);
+			
+			inserter.shutdown();
+		} 
+		catch (IOException e) 
 		{
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-		return (offset + Collections.max(nodeList) + 1);
 	}
-	
-	public static void getGraphStat(String neo4jDBPath, String srcDataPath)
-	{
-		GraphDatabaseService graphDb = new GraphDatabaseFactory()
-				.newEmbeddedDatabaseBuilder(new File(neo4jDBPath))
-				.setConfig(GraphDatabaseSettings.pagecache_memory, "2048M" )
-				.setConfig(GraphDatabaseSettings.string_block_size, "60" )
-				.setConfig(GraphDatabaseSettings.array_block_size, "300" )
-				.newGraphDatabase();
 		
+	public static void getGraphStat(String neo4jDBPath, String srcDataPath)
+	{		
 		File folder = new File(srcDataPath);
 		for (File fEntry : folder.listFiles())
 		{
 			if(fEntry.isFile())
 			{
 				String fileName = fEntry.getName();
+				
+				GraphDatabaseService graphDb = new GraphDatabaseFactory()
+						.newEmbeddedDatabaseBuilder(new File(neo4jDBPath + "//" + fileName))
+						.setConfig(GraphDatabaseSettings.pagecache_memory, "2048M" )
+						.setConfig(GraphDatabaseSettings.string_block_size, "60" )
+						.setConfig(GraphDatabaseSettings.array_block_size, "300" )
+						.newGraphDatabase();
+				
 				System.out.println(fileName);
 				String query =
 						"MATCH(n1:`" + fileName + "`)" + 
-						" RETURN n1.origID, size((n1)--()), n1.KClass LIMIT 10";
+						" RETURN ID(n1), size((n1)--()), n1.KClass, n1.KClassUpperBound, n1.degree LIMIT 10";
 				runQuery(query, graphDb);
 				System.out.println();
+				
+				graphDb.shutdown();
 			}
 		}
-		
-		graphDb.shutdown();
 	}
 	
 	public static void runQuery(String query, GraphDatabaseService graphDb)
@@ -218,9 +186,7 @@ public class AnalysisManager {
 		
 		if (importData)
 		{
-			initGraphDatabase(neo4jDBPath);
-			importDataFromFiles(srcDataPath);
-			closeGraphDatabase();
+			importDataFromFiles(srcDataPath, neo4jDBPath);
 		}
 		else
 		{
