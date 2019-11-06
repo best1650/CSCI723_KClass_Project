@@ -249,8 +249,49 @@ public class EMCore {
 	}
 	
 	// To be implemented by Li
-	public static void ComputeCore(int Kl, int Ku) {
+	public static Map<Long, Integer> ComputeCore(GraphDatabaseService auxdDB, int Kl, int Ku)
+	{
+		Map<Long, Integer> kcMap = new HashMap<Long, Integer>();
+		String query = "MATCH (v) RETURN ID(v) AS id, v.deposit AS deposit, v.degree AS degree";
+		String delRelation = "MATCH (n)-[r]-() WITH ID(v) AS id WHERE id = $id DELETE r";
+		String delNode = "MATCH (n) WITH ID(v) AS id WHERE id = $id DELETE n";
 		
+		for (int i = Kl; i <= Ku; i++)
+		{
+			boolean isDelete = true;
+			
+			while(isDelete)
+			{
+				isDelete = false;
+				
+				Result res = auxdDB.execute(query);
+				while(res.hasNext()) 
+				{
+					Map<String,Object> resMap = res.next();
+					int degree = (int)resMap.get("degree");
+					int deposit = (int)resMap.get("deposit");
+					Long vid = (Long)resMap.get("id");	
+					
+					if ( (degree + deposit) < i )
+					{
+						isDelete = true;
+						// remove nodes and edges
+						auxdDB.execute(delRelation);
+						auxdDB.execute(delNode);
+					}
+				}
+			}
+			
+			Result res = auxdDB.execute(query);
+			while(res.hasNext()) 
+			{
+				Map<String,Object> resMap = res.next();
+				Long vid = (Long)resMap.get("id");
+				kcMap.put(vid, i);
+			}
+		}
+		
+		return kcMap;
 	}
 
 }
