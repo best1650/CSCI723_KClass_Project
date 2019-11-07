@@ -1,4 +1,5 @@
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -21,6 +22,8 @@ import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
+import org.neo4j.unsafe.batchinsert.BatchInserter;
+import org.neo4j.unsafe.batchinsert.BatchInserters;
 
 public class EMCore {
 
@@ -266,6 +269,21 @@ public class EMCore {
 			if(W.size() >= Kl) {
 				// TODO 
 				// Create graph and call computecore function
+				createAuxGraphDB(W);
+				String auxDBPath = "";
+				GraphDatabaseService auxDB = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(new File(auxDBPath))
+						.setConfig(GraphDatabaseSettings.pagecache_memory, "2048M" )
+						.setConfig(GraphDatabaseSettings.string_block_size, "60" )
+						.setConfig(GraphDatabaseSettings.array_block_size, "300" )
+						.newGraphDatabase();
+				Transaction auxTx = auxDB.beginTx();
+				
+				Kc = ComputeCore(auxDB, Kl, Ku);
+				
+				auxDB.execute("MATCH (n) DETACH DELETE n");
+				
+				auxTx.close();
+				auxDB.shutdown();
 			}
 			for(long v: W) {
 				parameter.put("id",v);
@@ -310,15 +328,73 @@ public class EMCore {
 		while(Ku > mink);
 	}
 	
-	// To be implemented by Li
-	public static Map<Long, Integer> ComputeCore(GraphDatabaseService auxdDB, int Kl, int Ku)
+	public static void createAuxGraphDB(ArrayList<Long> W)
 	{
-		Map<Long, Integer> kcMap = new HashMap<Long, Integer>();
+		String auxDBPath = "";
+		HashMap<String, Object> parameter = new HashMap<String, Object>();
+		String nodeQuery = "MATCH (n) WHERE ID(v) = $id RETURN v.deposit as deposit";
+		String neighborQuery = "MATCH (n1)--(n2) WHERE ID(n1) = $id RETURN ID(n2) AS id ORDER BY id";
+		
+		try 
+		{
+			BatchInserter inserter = BatchInserters.inserter(new File(auxDBPath));
+			
+			for (Long w : W)
+			{
+				parameter.put("id",w);
+				Result res = graphDB.execute(nodeQuery, parameter);
+				parameter.clear();
+				while(res.hasNext()) 
+				{
+					parameter.put("deposit", (long)res.next().get("deposit"));
+				}
+				
+				inserter.createNode(w, parameter);
+			}
+			
+			ArrayList<Long> neighborList = new ArrayList<Long>();
+			
+			for (Long w : W)
+			{
+				parameter.put("id",w);
+				Result res = graphDB.execute(neighborQuery, parameter);
+				while(res.hasNext()) 
+				{
+					neighborList.add((long)res.next().get("id"));
+				}
+				
+				neighborList.retainAll(W);
+				parameter.clear();
+				parameter.put("degree", parameter.size());
+				inserter.setNodeProperties(w, parameter);
+				
+				for (Long nw : neighborList)
+				{
+					if (w > nw)
+					{
+						inserter.createRelationship(w, nw, null, null);
+					}
+				}
+			}
+			
+			inserter.shutdown();
+		}
+		catch (IOException e) 
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	// To be implemented by Li
+	public static Map<Long, Long> ComputeCore(GraphDatabaseService auxdDB, long kl, long ku)
+	{
+		Map<Long, Long> kcMap = new HashMap<Long, Long>();
 		String query = "MATCH (v) RETURN ID(v) AS id, v.deposit AS deposit, v.degree AS degree";
 		String delRelation = "MATCH (n)-[r]-() WITH ID(v) AS id WHERE id = $id DELETE r";
 		String delNode = "MATCH (n) WITH ID(v) AS id WHERE id = $id DELETE n";
 		
-		for (int i = Kl; i <= Ku; i++)
+		for (long i = kl; i <= ku; i++)
 		{
 			boolean isDelete = true;
 			
