@@ -92,6 +92,7 @@ public class AnalysisManager {
 					inserter.createRelationship(FromNodeId, ToNodeId, RelationshipType.withName(fileName), null);
 				}
 				
+				/*
 				if (curNodeId != FromNodeId)
 				{
 					if(curNodeId != -1)
@@ -106,14 +107,17 @@ public class AnalysisManager {
 				}
 				
 				degree++;
+				*/
 				curNodeId = FromNodeId;
 			}
 			
+			/*
 			attMap.clear();
 			attMap.put("degree", degree);
 			attMap.put("KClass", 0);
 			attMap.put("KClassUpperBound", 0);
 			inserter.setNodeProperties(curNodeId, attMap);
+			*/
 			
 			inserter.shutdown();
 		} 
@@ -143,7 +147,7 @@ public class AnalysisManager {
 				System.out.println(fileName);
 				String query =
 						"MATCH(n1:`" + fileName + "`)" + 
-						" RETURN ID(n1), size((n1)--()), n1.KClass, n1.KClassUpperBound, n1.degree LIMIT 10";
+						" RETURN ID(n1), size((n1)--()) LIMIT 10";
 				runQuery(query, graphDb);
 				System.out.println();
 				
