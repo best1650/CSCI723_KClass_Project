@@ -18,6 +18,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.collections.impl.factory.Sets;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
@@ -130,7 +131,7 @@ public class EMCore {
 			}
 			
 			inputList = getListSortedByVal(kcupMap);
-			System.out.println(inputList);
+//			System.out.println(inputList);
 			
 			// Create an empty list
 			ArrayList<Long> nextList = UpperBoundReduction(inputList);
@@ -178,7 +179,7 @@ public class EMCore {
 						+ "WHERE ID(v)=$id "
 						+ "SET v.KClassUpperBound = $min "
 						+ "RETURN ID(v), v.KClassUpperBound",par);
-				System.out.println(res.next());
+//				System.out.println(res.next());
 				for(int i = 0; i < Z.size(); i++)
 					rtnList.add(Z.get(i));
 			}
@@ -207,7 +208,7 @@ public class EMCore {
 		// Test Block
 		createDB("/home/sapan/Documents/CSCI-723-GraphDB/Assignment7/TryGraphs");
 		KCoreDecomposition(2, 1, 1);
-		System.out.println(vertexMap);
+		printTestGraph();
 		System.out.println("Job Completed!");
 		closeDB();
 
@@ -246,9 +247,9 @@ public class EMCore {
 		}
 		tx.success();
 //		System.out.println(W);
-//		printTestGraph();
+		printTestGraph();
 		refinedUpperBound(W,limit);
-//		printTestGraph();
+		printTestGraph();
 		long Ku = 0;
 		do {
 			Ku = calculateKUpper();
@@ -270,7 +271,7 @@ public class EMCore {
 				// TODO 
 				// Create graph and call computecore function
 				createAuxGraphDB(W);
-				String auxDBPath = "";
+				String auxDBPath = "/home/sapan/Documents/CSCI-723-GraphDB/TryGraphs2";
 				GraphDatabaseService auxDB = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(new File(auxDBPath))
 						.setConfig(GraphDatabaseSettings.pagecache_memory, "2048M" )
 						.setConfig(GraphDatabaseSettings.string_block_size, "60" )
@@ -330,14 +331,15 @@ public class EMCore {
 	
 	public static void createAuxGraphDB(ArrayList<Long> W)
 	{
-		String auxDBPath = "";
+		String auxDBPath = "/home/sapan/Documents/CSCI-723-GraphDB/TryGraphs2";
 		HashMap<String, Object> parameter = new HashMap<String, Object>();
-		String nodeQuery = "MATCH (n) WHERE ID(v) = $id RETURN v.deposit as deposit";
+		String nodeQuery = "MATCH (v) WHERE ID(v) = $id RETURN v.deposit as deposit";
 		String neighborQuery = "MATCH (n1)--(n2) WHERE ID(n1) = $id RETURN ID(n2) AS id ORDER BY id";
+		BatchInserter inserter = null;
 		
 		try 
 		{
-			BatchInserter inserter = BatchInserters.inserter(new File(auxDBPath));
+			inserter = BatchInserters.inserter(new File(auxDBPath));
 			
 			for (Long w : W)
 			{
@@ -364,7 +366,7 @@ public class EMCore {
 				}
 				
 				neighborList.retainAll(W);
-				parameter.clear();
+				//parameter.clear();
 				parameter.put("degree", parameter.size());
 				inserter.setNodeProperties(w, parameter);
 				
@@ -372,7 +374,7 @@ public class EMCore {
 				{
 					if (w > nw)
 					{
-						inserter.createRelationship(w, nw, null, null);
+						inserter.createRelationship(w, nw, RelationshipType.withName(""), null);
 					}
 				}
 			}
@@ -382,6 +384,7 @@ public class EMCore {
 		catch (IOException e) 
 		{
 			// TODO Auto-generated catch block
+			inserter.shutdown();
 			e.printStackTrace();
 		}
 	}
