@@ -261,7 +261,7 @@ public class EMCore {
 			while(res.hasNext()) {
 				W.add((long)res.next().get("id"));
 			}
-			List<Long> M = new ArrayList<>();
+			ArrayList<Long> M = new ArrayList<>();
 			Map<Long,Long> Kc = new HashMap<>();
 			if(W.size() >= Kl) {
 				// TODO 
@@ -305,6 +305,7 @@ public class EMCore {
 					}
 				}
 			}
+			refinedUpperBound(M,limit);
 		}
 		while(Ku > mink);
 	}
