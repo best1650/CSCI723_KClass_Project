@@ -18,19 +18,20 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.collections.impl.factory.Sets;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.unsafe.batchinsert.BatchInserter;
 import org.neo4j.unsafe.batchinsert.BatchInserters;
+import org.neo4j.graphdb.RelationshipType;
 
 public class EMCore {
 
 	// Public members
 	public static GraphDatabaseService graphDB;
 	public static Transaction tx ;
+	public static String auxDBPath;
 	
 	// vertex to list of properties 
 	// Property list description below 
@@ -131,7 +132,7 @@ public class EMCore {
 			}
 			
 			inputList = getListSortedByVal(kcupMap);
-//			System.out.println(inputList);
+			System.out.println(inputList);
 			
 			// Create an empty list
 			ArrayList<Long> nextList = UpperBoundReduction(inputList);
@@ -179,7 +180,7 @@ public class EMCore {
 						+ "WHERE ID(v)=$id "
 						+ "SET v.KClassUpperBound = $min "
 						+ "RETURN ID(v), v.KClassUpperBound",par);
-//				System.out.println(res.next());
+				System.out.println(res.next());
 				for(int i = 0; i < Z.size(); i++)
 					rtnList.add(Z.get(i));
 			}
@@ -206,9 +207,11 @@ public class EMCore {
 //		// Terminate the Graph database service
 //		closeDB();
 		// Test Block
-		createDB("/home/sapan/Documents/CSCI-723-GraphDB/Assignment7/TryGraphs");
+		createDB("D:/RIT/2019 Fall/7 Social Network Analysis/DummyDB");
+		auxDBPath = "C:/Users/zli18/Desktop/auxDB";
+		//createDB("/home/sapan/Documents/CSCI-723-GraphDB/Assignment7/TryGraphs");
 		KCoreDecomposition(2, 1, 1);
-		printTestGraph();
+		System.out.println(vertexMap);
 		System.out.println("Job Completed!");
 		closeDB();
 
@@ -247,9 +250,10 @@ public class EMCore {
 		}
 		tx.success();
 //		System.out.println(W);
-		printTestGraph();
+//		printTestGraph();
 		refinedUpperBound(W,limit);
-		printTestGraph();
+//		printTestGraph();
+		
 		long Ku = 0;
 		do {
 			Ku = calculateKUpper();
@@ -265,26 +269,25 @@ public class EMCore {
 			while(res.hasNext()) {
 				W.add((long)res.next().get("id"));
 			}
+			
 			ArrayList<Long> M = new ArrayList<>();
 			Map<Long,Long> Kc = new HashMap<>();
 			if(W.size() >= Kl) {
 				// TODO 
 				// Create graph and call computecore function
 				createAuxGraphDB(W);
-				String auxDBPath = "/home/sapan/Documents/CSCI-723-GraphDB/TryGraphs2";
-				GraphDatabaseService auxDB = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(new File(auxDBPath))
+				GraphDatabaseService auxDB = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(new File(auxDBPath + "/DB"))
 						.setConfig(GraphDatabaseSettings.pagecache_memory, "2048M" )
 						.setConfig(GraphDatabaseSettings.string_block_size, "60" )
 						.setConfig(GraphDatabaseSettings.array_block_size, "300" )
 						.newGraphDatabase();
 				Transaction auxTx = auxDB.beginTx();
-				
 				Kc = ComputeCore(auxDB, Kl, Ku);
-				
-				auxDB.execute("MATCH (n) DETACH DELETE n");
-				
+
 				auxTx.close();
 				auxDB.shutdown();
+				
+				deleteDirectory(new File(auxDBPath)); 
 			}
 			for(long v: W) {
 				parameter.put("id",v);
@@ -325,66 +328,63 @@ public class EMCore {
 				}
 			}
 			refinedUpperBound(M,limit);
+
 		}
 		while(Ku > mink);
+		
 	}
 	
 	public static void createAuxGraphDB(ArrayList<Long> W)
 	{
-		String auxDBPath = "/home/sapan/Documents/CSCI-723-GraphDB/TryGraphs2";
 		HashMap<String, Object> parameter = new HashMap<String, Object>();
-		String nodeQuery = "MATCH (v) WHERE ID(v) = $id RETURN v.deposit as deposit";
+		String nodeQuery = "MATCH (n) WHERE ID(n) = $id RETURN n.deposit as deposit";
 		String neighborQuery = "MATCH (n1)--(n2) WHERE ID(n1) = $id RETURN ID(n2) AS id ORDER BY id";
-		BatchInserter inserter = null;
 		
 		try 
 		{
-			inserter = BatchInserters.inserter(new File(auxDBPath));
-			
+			BatchInserter inserter = BatchInserters.inserter(new File(auxDBPath+"/DB"));
 			for (Long w : W)
 			{
-				parameter.put("id",w);
-				Result res = graphDB.execute(nodeQuery, parameter);
-				parameter.clear();
-				while(res.hasNext()) 
-				{
-					parameter.put("deposit", (long)res.next().get("deposit"));
-				}
-				
 				inserter.createNode(w, parameter);
 			}
 			
 			ArrayList<Long> neighborList = new ArrayList<Long>();
-			
 			for (Long w : W)
 			{
+				parameter.clear();
+				neighborList.clear();
 				parameter.put("id",w);
 				Result res = graphDB.execute(neighborQuery, parameter);
 				while(res.hasNext()) 
 				{
 					neighborList.add((long)res.next().get("id"));
 				}
-				
 				neighborList.retainAll(W);
-				//parameter.clear();
-				parameter.put("degree", parameter.size());
+				
+				res = graphDB.execute(nodeQuery, parameter);
+				parameter.clear();
+				while(res.hasNext()) 
+				{
+					parameter.put("deposit", (long)res.next().get("deposit"));
+				}
+				
+				parameter.put("degree", (long)neighborList.size());
 				inserter.setNodeProperties(w, parameter);
 				
 				for (Long nw : neighborList)
 				{
 					if (w > nw)
 					{
-						inserter.createRelationship(w, nw, RelationshipType.withName(""), null);
+						inserter.createRelationship(w, nw, RelationshipType.withName("rel"), null);
 					}
 				}
 			}
-			
+
 			inserter.shutdown();
 		}
 		catch (IOException e) 
 		{
 			// TODO Auto-generated catch block
-			inserter.shutdown();
 			e.printStackTrace();
 		}
 	}
@@ -394,8 +394,8 @@ public class EMCore {
 	{
 		Map<Long, Long> kcMap = new HashMap<Long, Long>();
 		String query = "MATCH (v) RETURN ID(v) AS id, v.deposit AS deposit, v.degree AS degree";
-		String delRelation = "MATCH (n)-[r]-() WITH ID(v) AS id WHERE id = $id DELETE r";
-		String delNode = "MATCH (n) WITH ID(v) AS id WHERE id = $id DELETE n";
+		String delNode = "MATCH (n) where ID(n)=$id OPTIONAL MATCH (n)-[r]-() DELETE r, n";
+		Map<String, Object> parameter = new HashMap<String, Object>();
 		
 		for (long i = kl; i <= ku; i++)
 		{
@@ -409,16 +409,17 @@ public class EMCore {
 				while(res.hasNext()) 
 				{
 					Map<String,Object> resMap = res.next();
-					int degree = (int)resMap.get("degree");
-					int deposit = (int)resMap.get("deposit");
+					long degree = (long)resMap.get("degree");
+					long deposit = (long)resMap.get("deposit");
 					Long vid = (Long)resMap.get("id");	
 					
 					if ( (degree + deposit) < i )
 					{
 						isDelete = true;
 						// remove nodes and edges
-						auxdDB.execute(delRelation);
-						auxdDB.execute(delNode);
+						parameter.clear();
+						parameter.put("id", vid);
+						auxdDB.execute(delNode, parameter);
 					}
 				}
 			}
@@ -469,4 +470,38 @@ public class EMCore {
 		return max;
 	}
 
+	public static void runQuery(String query, GraphDatabaseService graphDb)
+	{
+		try
+		{			
+			Transaction ignored = graphDb.beginTx();
+			Result result = graphDb.execute(query);
+			int count = 0;
+			while(result.hasNext())
+			{
+				count++;
+				System.out.print(count + ". ");
+				for (Map.Entry<String,Object> entry : result.next().entrySet())
+				{
+					System.out.print(entry.getKey() + ":" + entry.getValue().toString() + "\t");
+				}
+				 
+				System.out.println();
+			}
+		}
+		catch(Exception e)
+		{
+			
+		}
+	}
+
+	public static boolean deleteDirectory(File directoryToBeDeleted) {
+	    File[] allContents = directoryToBeDeleted.listFiles();
+	    if (allContents != null) {
+	        for (File file : allContents) {
+	            deleteDirectory(file);
+	        }
+	    }
+	    return directoryToBeDeleted.delete();
+	}
 }
