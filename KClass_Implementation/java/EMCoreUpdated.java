@@ -1,10 +1,6 @@
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -13,11 +9,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
-import org.apache.commons.lang3.tuple.Pair;
-import org.eclipse.collections.impl.factory.Sets;
 import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
@@ -32,18 +26,7 @@ public class EMCore {
 	public static GraphDatabaseService graphDB;
 	public static Transaction tx ;
 	public static String auxDBPath;
-	
-	// vertex to list of properties 
-	// Property list description below 
-	// index : property name
-	// 0 : deposit
-	// 1 : KClass
-	// 2 : KClassUpperBound
-	// 3 : degree
-	public static Map<Long,List<Integer>> vertexMap;
-	
-	// vertex to original id
-	public static Map<Long,Long> originalIdMap;
+	public static String srcDBPath;
 	
 	public static void createDB(String neo4jFolder)
 	{
@@ -77,7 +60,7 @@ public class EMCore {
 		graphDB.shutdown();
 	}
 	
-	public static ArrayList<Long> getListSortedByVal(HashMap<Long, Long> hm)
+	public static Set<Long> getListSortedByVal(HashMap<Long, Long> hm)
 	{
 		 List<Map.Entry<Long, Long> > list = new LinkedList<Map.Entry<Long, Long> >(hm.entrySet()); 
 		 Collections.sort(list, new Comparator<Map.Entry<Long, Long> >() 
@@ -90,14 +73,14 @@ public class EMCore {
 			 } 
 		 }); 
 		 
-		 ArrayList<Long> rtnList = new ArrayList<Long>();
+		 Set<Long> rtnSet = new HashSet<Long>();
 		 
 		 for (Map.Entry<Long, Long> item : list) 
 		 { 
-			 rtnList.add(item.getKey()); 
+			 rtnSet.add(item.getKey()); 
 	     } 
 		 
-		 return rtnList;
+		 return rtnSet;
 	}
 	
 
@@ -107,7 +90,7 @@ public class EMCore {
 	 * @return None
 	 * 
 	 **********************************************************************/
-	public static void refinedUpperBound(ArrayList<Long> inputList, int limit)
+	public static void refinedUpperBound(Set<Long> inputSet, int limit)
 	{
 		// Iterator counter
 		int iter = 0;
@@ -116,13 +99,13 @@ public class EMCore {
 		Map<String,Object> parameter = new HashMap<>();
 				
 		// Stop the process the number of iteration hits the given limit
-		while (iter < limit && inputList.size() > 0)
+		while (iter < limit && inputSet.size() > 0)
 		{
 			// Clear the map
 			kcupMap.clear();
 			
 			// foreach v in the input list
-			for(Long v : inputList)
+			for(Long v : inputSet)
 			{
 				// Get KClass Upper Bound from vertex map
 				// See description for class variables
@@ -131,23 +114,23 @@ public class EMCore {
 				kcupMap.put(v, (long)v_prop.get("k"));
 			}
 			
-			inputList = getListSortedByVal(kcupMap);
-			System.out.println(inputList);
+			inputSet = getListSortedByVal(kcupMap);
+//			System.out.println(inputSet);
 			
 			// Create an empty list
-			ArrayList<Long> nextList = UpperBoundReduction(inputList);
+			Set<Long> nextList = UpperBoundReduction(inputSet);
 			
 			// For next iteration
-			inputList = new ArrayList<Long>(nextList);
+			inputSet = new HashSet<Long>(nextList);
 			iter++;
 		}
 	}
 	
 	// Implement by Pansa
-	public static ArrayList<Long> UpperBoundReduction(ArrayList<Long> inputList)
+	public static Set<Long> UpperBoundReduction(Set<Long> inputSet)
 	{
-		ArrayList<Long> rtnList = new ArrayList<>();
-		for(Long v : inputList) {
+		Set<Long> rtnSet = new HashSet<>();
+		for(Long v : inputSet) {
 			ArrayList<Long> Z = new ArrayList<>();
 			Map<String,Object> par = new HashMap<>();
 			Map<String,Object> v_prop = getNodeProperties(v);
@@ -168,50 +151,58 @@ public class EMCore {
 			}
 			if((v_degree - Z.size()) < v_kcub) {
 				long min = Long.MAX_VALUE;
+				boolean flag = false;
 				for(int i = 1; i <= Z.size(); i++) {
 					Map<String,Object> u_prop = getNodeProperties(Z.get(i-1));
 					long u_kcub = (long)u_prop.get("k");
 					long c = Math.max(v_degree-i, u_kcub);
-					if(c < min)
+					if(c < min) {
 						min = c;
+						flag = true;
+					}
 				}
-				par.put("min",min);
-				res = graphDB.execute("MATCH (v) "
-						+ "WHERE ID(v)=$id "
-						+ "SET v.KClassUpperBound = $min "
-						+ "RETURN ID(v), v.KClassUpperBound",par);
-				System.out.println(res.next());
+				if(flag) {
+					par.put("min",min);
+					res = graphDB.execute("MATCH (v) "
+							+ "WHERE ID(v)=$id "
+							+ "SET v.KClassUpperBound = $min "
+							+ "RETURN ID(v), v.KClassUpperBound",par);
+				}
 				for(int i = 0; i < Z.size(); i++)
-					rtnList.add(Z.get(i));
+					rtnSet.add(Z.get(i));
 			}
 		}
 		
-		return rtnList;
+		return rtnSet;
 	}
 	
 	// Main Function
 	public static void main(String[] args) 
 	{
 		// Input arguments from the main function
-//		String srcNeo4jFolder = args[0];
-//		String auxNeo4jFolder= args[1];
-//		int KClass = Integer.parseInt(args[2]);
-//		int limit = Integer.parseInt(args[3]);
-//		float p = Float.parseFloat(args[4]);
-//		int stepover = Integer.parseInt(args[5]);
-//		
-//		// Create the graph database with the given source Neo4j path
-//		createDB(srcNeo4jFolder);
-//		// K-Class upper bound estimation
-//		// computeKClassUpperBound(KClass, limit);
-//		// Terminate the Graph database service
-//		closeDB();
+		srcDBPath = args[0];
+		auxDBPath= args[1];
+		int KClass = Integer.parseInt(args[2]);
+		int limit = Integer.parseInt(args[3]);
+		float p = Float.parseFloat(args[4]);
+		int stepover = Integer.parseInt(args[5]);
+		
+		// Create the graph database with the given source Neo4j path
+		createDB(srcDBPath);
+		KCoreDecomposition(KClass, limit, stepover);
+		// K-Class upper bound estimation
+		// computeKClassUpperBound(KClass, limit);
+		// Terminate the Graph database service
+		closeDB();
 		// Test Block
-		createDB("D:/RIT/2019 Fall/7 Social Network Analysis/DummyDB");
-		auxDBPath = "C:/Users/zli18/Desktop/auxDB";
-		//createDB("/home/sapan/Documents/CSCI-723-GraphDB/Assignment7/TryGraphs");
-		KCoreDecomposition(2, 1, 1);
-		System.out.println(vertexMap);
+		//createDB("D:/RIT/2019 Fall/7 Social Network Analysis/DummyDB");
+		//auxDBPath = "C:/Users/zli18/Desktop/auxDB";
+//		auxDBPath = "/home/sapan/Documents/CSCI-723-GraphDB/TryGraphs2";
+//		createDB("/home/sapan/Documents/CSCI-723-GraphDB/Assignment7/TryGraphs");
+//		KCoreDecomposition(2, 1, 1);
+//		System.out.println("Third");
+//		printTestGraph();
+
 		System.out.println("Job Completed!");
 		closeDB();
 
@@ -223,7 +214,7 @@ public class EMCore {
 		Result res = graphDB.execute("MATCH (v) "
 				+ "WITH size((v)--()) as degree, ID(v) as id "
 				+ "RETURN degree,id ");
-		ArrayList<Long> W = new ArrayList<>();		
+		Set<Long> W = new HashSet<>();		
 		while(res.hasNext()) {
 			// reference to query result
 			Map<String,Object> resMap = res.next();
@@ -249,16 +240,19 @@ public class EMCore {
 			}
 		}
 		tx.success();
-//		System.out.println(W);
+//		System.out.println("First");
 //		printTestGraph();
+
 		refinedUpperBound(W,limit);
+//		System.out.println("Second");
 //		printTestGraph();
-		
+
 		long Ku = 0;
 		do {
+//			printTestGraph();
 			Ku = calculateKUpper();
 			long Kl = Ku - step;
-			W = new ArrayList<>();
+			W = new HashSet<>();
 			Map<String,Object> parameter = new HashMap<>();
 			parameter.put("Kl",Kl);
 			parameter.put("Ku",Ku);
@@ -269,25 +263,23 @@ public class EMCore {
 			while(res.hasNext()) {
 				W.add((long)res.next().get("id"));
 			}
-			
-			ArrayList<Long> M = new ArrayList<>();
+			Set<Long> M = new HashSet<>();
 			Map<Long,Long> Kc = new HashMap<>();
 			if(W.size() >= Kl) {
 				// TODO 
 				// Create graph and call computecore function
 				createAuxGraphDB(W);
-				GraphDatabaseService auxDB = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(new File(auxDBPath + "/DB"))
+				GraphDatabaseService auxDB = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(new File(auxDBPath))
 						.setConfig(GraphDatabaseSettings.pagecache_memory, "2048M" )
 						.setConfig(GraphDatabaseSettings.string_block_size, "60" )
 						.setConfig(GraphDatabaseSettings.array_block_size, "300" )
 						.newGraphDatabase();
 				Transaction auxTx = auxDB.beginTx();
 				Kc = ComputeCore(auxDB, Kl, Ku);
-
 				auxTx.close();
 				auxDB.shutdown();
 				
-				deleteDirectory(new File(auxDBPath)); 
+//				deleteDirectory(new File(auxDBPath)); 
 			}
 			for(long v: W) {
 				parameter.put("id",v);
@@ -306,13 +298,14 @@ public class EMCore {
 							+ "RETURN v",parameter);
 					M.add(v);
 				}
+				tx.success();
 			}
 			parameter.clear();
 			for(long v: Kc.keySet()) {
 				parameter.put("id",v);
 				res = graphDB.execute("MATCH ((v)--(v1)) "
 						+ "WHERE ID(v) = $id "
-						+ "RETURN ID(v1) AS nbid");
+						+ "RETURN ID(v1) AS nbid",parameter);
 				while(res.hasNext()) {
 					long n = (long)res.next().get("nbid");
 					Map<String,Object> n_prop = getNodeProperties(n);
@@ -334,18 +327,20 @@ public class EMCore {
 		
 	}
 	
-	public static void createAuxGraphDB(ArrayList<Long> W)
+	public static void createAuxGraphDB(Set<Long> W)
 	{
 		HashMap<String, Object> parameter = new HashMap<String, Object>();
 		String nodeQuery = "MATCH (n) WHERE ID(n) = $id RETURN n.deposit as deposit";
 		String neighborQuery = "MATCH (n1)--(n2) WHERE ID(n1) = $id RETURN ID(n2) AS id ORDER BY id";
+		BatchInserter inserter = null;
 		
 		try 
 		{
-			BatchInserter inserter = BatchInserters.inserter(new File(auxDBPath+"/DB"));
+			inserter = BatchInserters.inserter(new File(auxDBPath));
 			for (Long w : W)
 			{
-				inserter.createNode(w, parameter);
+				if(!inserter.nodeExists(w))
+					inserter.createNode(w, parameter);
 			}
 			
 			ArrayList<Long> neighborList = new ArrayList<Long>();
@@ -375,7 +370,7 @@ public class EMCore {
 				{
 					if (w > nw)
 					{
-						inserter.createRelationship(w, nw, RelationshipType.withName("rel"), null);
+						inserter.createRelationship(w, nw, RelationshipType.withName(""), null);
 					}
 				}
 			}
@@ -385,6 +380,7 @@ public class EMCore {
 		catch (IOException e) 
 		{
 			// TODO Auto-generated catch block
+			inserter.shutdown();
 			e.printStackTrace();
 		}
 	}
@@ -459,7 +455,8 @@ public class EMCore {
 	
 	public static long calculateKUpper() {
 		Result res = graphDB.execute("MATCH (v) "
-				+ "WITH coalesce(v.KClass,v.KClassUpperBound) as k "
+				+ "WHERE EXISTS(v.KClassUpperBound) "
+				+ "WITH v.KClassUpperBound as k "
 				+ "RETURN k");
 		long max = Long.MIN_VALUE;
 		while(res.hasNext()) {
@@ -470,38 +467,4 @@ public class EMCore {
 		return max;
 	}
 
-	public static void runQuery(String query, GraphDatabaseService graphDb)
-	{
-		try
-		{			
-			Transaction ignored = graphDb.beginTx();
-			Result result = graphDb.execute(query);
-			int count = 0;
-			while(result.hasNext())
-			{
-				count++;
-				System.out.print(count + ". ");
-				for (Map.Entry<String,Object> entry : result.next().entrySet())
-				{
-					System.out.print(entry.getKey() + ":" + entry.getValue().toString() + "\t");
-				}
-				 
-				System.out.println();
-			}
-		}
-		catch(Exception e)
-		{
-			
-		}
-	}
-
-	public static boolean deleteDirectory(File directoryToBeDeleted) {
-	    File[] allContents = directoryToBeDeleted.listFiles();
-	    if (allContents != null) {
-	        for (File file : allContents) {
-	            deleteDirectory(file);
-	        }
-	    }
-	    return directoryToBeDeleted.delete();
-	}
 }
