@@ -22,61 +22,72 @@ public class Assignment7TestGraph {
     		Map<String,Object> n = new HashMap<>();
     		
     		// Create nodes
-    		n.put("KClass", 1);
-    		n.put("KClassUpperBound", 0);
-    		n.put("OriginalId", (long)'a');
+//    		n.put("KClass", 1);
+//    		n.put("KClassUpperBound", 0);
 			batchInserter.createNode(ida,n, Label.label("a"));
-			n.put("KClass", 0);
-    		n.put("KClassUpperBound", 3);
-    		n.put("OriginalId", (long)'b');
+//    		n = new HashMap<>();
+
+//    		n.put("KClassUpperBound", 3);
     		batchInserter.createNode(idb,n, Label.label("b"));
-    		n.put("KClass", 1);
-    		n.put("KClassUpperBound", 0);
-    		n.put("OriginalId", (long)'c');
+//    		n = new HashMap<>();
+
+//    		n.put("KClass", 1);
+    		//n.put("KClassUpperBound", 0);
     		batchInserter.createNode(idc,n, Label.label("c"));
-    		n.put("KClass", 0);
-    		n.put("KClassUpperBound", 3);
-    		n.put("OriginalId", (long)'d');
+//    		n = new HashMap<>();
+
+    		//n.put("KClass", 0);
+//    		n.put("KClassUpperBound", 3);
     		batchInserter.createNode(idd,n, Label.label("d"));
-    		n.put("KClass", 0);
-    		n.put("KClassUpperBound", 4);
-    		n.put("OriginalId", (long)'e');
+//    		n = new HashMap<>();
+
+    		//n.put("KClass", 0);
+//    		n.put("KClassUpperBound", 4);
     		batchInserter.createNode(ide,n, Label.label("e"));
-    		n.put("KClass", 0);
-    		n.put("KClassUpperBound", 2);
-    		n.put("OriginalId", (long)'f');
+//    		n = new HashMap<>();
+
+    		//n.put("KClass", 0);
+//    		n.put("KClassUpperBound", 2);
     		batchInserter.createNode(idf,n, Label.label("f"));
-    		n.put("KClass", 0);
-    		n.put("KClassUpperBound", 3);
-    		n.put("OriginalId", (long)'g');
+//    		n = new HashMap<>();
+
+    		//n.put("KClass", 0);
+//    		n.put("KClassUpperBound", 3);
     		batchInserter.createNode(idg,n, Label.label("g"));
-    		n.put("KClass", 0);
-    		n.put("KClassUpperBound", 5);
-    		n.put("OriginalId", (long)'h');
+//    		n = new HashMap<>();
+
+    		//n.put("KClass", 0);
+//    		n.put("KClassUpperBound", 5);
     		batchInserter.createNode(idh,n, Label.label("h"));
-    		n.put("KClass", 0);
-    		n.put("KClassUpperBound", 6);
-    		n.put("OriginalId", (long)'i');
+//    		n = new HashMap<>();
+
+    		//n.put("KClass", 0);
+//    		n.put("KClassUpperBound", 6);
     		batchInserter.createNode(idi,n, Label.label("i"));
-    		n.put("KClass", 0);
-    		n.put("KClassUpperBound", 5);
-    		n.put("OriginalId", (long)'l');
+//    		n = new HashMap<>();
+
+    		//n.put("KClass", 0);
+//    		n.put("KClassUpperBound", 5);
     		batchInserter.createNode(idl,n, Label.label("l"));
-    		n.put("KClass", 0);
-    		n.put("KClassUpperBound", 4);
-    		n.put("OriginalId", (long)'k');
+//    		n = new HashMap<>();
+
+    		//n.put("KClass", 0);
+//    		n.put("KClassUpperBound", 4);
     		batchInserter.createNode(idk,n, Label.label("k"));
-    		n.put("KClass", 1);
-    		n.put("KClassUpperBound", 0);
-    		n.put("OriginalId", (long)'j');
+//    		n = new HashMap<>();
+
+//    		n.put("KClass", 1);
+    		//n.put("KClassUpperBound", 0);
     		batchInserter.createNode(idj,n, Label.label("j"));
-    		n.put("KClass", 0);
-    		n.put("KClassUpperBound", 2);
-    		n.put("OriginalId", (long)'m');
+//    		n = new HashMap<>();
+
+    		//n.put("KClass", 0);
+//    		n.put("KClassUpperBound", 2);
     		batchInserter.createNode(idm,n, Label.label("m"));
-    		n.put("KClass", 0);
-    		n.put("KClassUpperBound", 4);
-    		n.put("OriginalId", (long)'n');
+//    		n = new HashMap<>();
+
+    		//n.put("KClass", 0);
+//    		n.put("KClassUpperBound", 4);
     		batchInserter.createNode(idn,n, Label.label("n"));
     		
     		
