@@ -30,12 +30,15 @@ public class EMCore {
 	
 	public static void createDB(String neo4jFolder)
 	{
+//		GraphDatabaseFactory gdbf = new GraphDatabaseFactory();
+//		graphDB = gdbf.newEmbeddedDatabase(new File(neo4jFolder));
 		graphDB = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(new File(neo4jFolder))
 				.setConfig(GraphDatabaseSettings.pagecache_memory, "2048M" )
 				.setConfig(GraphDatabaseSettings.string_block_size, "60" )
 				.setConfig(GraphDatabaseSettings.array_block_size, "300" )
 				.newGraphDatabase();
 		tx = graphDB.beginTx();
+		System.out.println("DB service created");
 		/*
 		try 
 		{
@@ -99,23 +102,28 @@ public class EMCore {
 		Map<String,Object> parameter = new HashMap<>();
 				
 		// Stop the process the number of iteration hits the given limit
+		// TODO iter <= limit
 		while (iter < limit && inputSet.size() > 0)
 		{
 			// Clear the map
 			kcupMap.clear();
 			
 			// foreach v in the input list
+			int count = 0;
 			for(Long v : inputSet)
 			{
 				// Get KClass Upper Bound from vertex map
 				// See description for class variables
-				parameter.put("id",v);
+//				parameter.put("id",v);
 				Map<String,Object> v_prop = getNodeProperties(v);
 				kcupMap.put(v, (long)v_prop.get("k"));
+				count++;
+				if(count%1000 == 0)
+					System.out.println(count);
 			}
 			
 			inputSet = getListSortedByVal(kcupMap);
-//			System.out.println(inputSet);
+			System.out.println("inputSet sorted "+inputSet.size());
 			
 			// Create an empty list
 			Set<Long> nextList = UpperBoundReduction(inputSet);
@@ -130,8 +138,10 @@ public class EMCore {
 	public static Set<Long> UpperBoundReduction(Set<Long> inputSet)
 	{
 		Set<Long> rtnSet = new HashSet<>();
+		int count = 0;
 		for(Long v : inputSet) {
 			ArrayList<Long> Z = new ArrayList<>();
+			Map<Long,Long> Z_Map = new HashMap<>();
 			Map<String,Object> par = new HashMap<>();
 			Map<String,Object> v_prop = getNodeProperties(v);
 			par.put("id",v);
@@ -142,20 +152,23 @@ public class EMCore {
 			// Get degree of neighbors of v
 			Result res = graphDB.execute("MATCH (v)--(v1) "
 					+ "WITH ID(v) AS id, coalesce(v1.KClass,v1.KClassUpperBound) as k, ID(v1) as nbid "
-	    			+ "WHERE id = $id AND k < $d "
+	    			+ "WHERE id = $id AND EXISTS(v.KClassUpperBound) AND k < $d "
 	    			+ "RETURN nbid, k "
 	    			+ "ORDER BY k ASC",par);
 			while(res.hasNext()) {
 				Map<String,Object> resMap = res.next();
-				Z.add((Long)resMap.get("nbid"));
+				Long zid =(Long)resMap.get("nbid");
+				Long zk = (Long)resMap.get("k");
+				Z.add(zid);
+				Z_Map.put(zid,zk);
 			}
 			if((v_degree - Z.size()) < v_kcub) {
 				long min = Long.MAX_VALUE;
 				boolean flag = false;
 				for(int i = 1; i <= Z.size(); i++) {
-					Map<String,Object> u_prop = getNodeProperties(Z.get(i-1));
-					long u_kcub = (long)u_prop.get("k");
-					long c = Math.max(v_degree-i, u_kcub);
+//					Map<String,Object> u_prop = getNodeProperties(Z.get(i-1));
+//					long u_kcub = (long)u_prop.get("k");
+					long c = Math.max(v_degree-i, Z_Map.get(Z.get(i-1)));
 					if(c < min) {
 						min = c;
 						flag = true;
@@ -163,16 +176,18 @@ public class EMCore {
 				}
 				if(flag) {
 					par.put("min",min);
-					res = graphDB.execute("MATCH (v) "
+					graphDB.execute("MATCH (v) "
 							+ "WHERE ID(v)=$id "
-							+ "SET v.KClassUpperBound = $min "
-							+ "RETURN ID(v), v.KClassUpperBound",par);
+							+ "SET v.KClassUpperBound = $min ",par);
 				}
 				for(int i = 0; i < Z.size(); i++)
 					rtnSet.add(Z.get(i));
 			}
+			count++;
+			if(count%1000 == 0)
+				System.out.println(count + " ubr");
 		}
-		
+		System.out.println("Returning from ubr " + rtnSet.size());
 		return rtnSet;
 	}
 	
@@ -180,8 +195,10 @@ public class EMCore {
 	public static void main(String[] args) 
 	{
 		// Input arguments from the main function
-		srcDBPath = args[0];
-		auxDBPath= args[1];
+//		srcDBPath = args[0];
+//		auxDBPath = args[1];
+		srcDBPath = "/home/sapan/Documents/CSCI-723-GraphDB/Assignment7/EnronDB";
+		auxDBPath= "/home/sapan/Documents/CSCI-723-GraphDB/AuxDB";
 		int KClass = Integer.parseInt(args[2]);
 		int limit = Integer.parseInt(args[3]);
 		float p = Float.parseFloat(args[4]);
@@ -190,30 +207,22 @@ public class EMCore {
 		// Create the graph database with the given source Neo4j path
 		createDB(srcDBPath);
 		KCoreDecomposition(KClass, limit, stepover);
-		// K-Class upper bound estimation
-		// computeKClassUpperBound(KClass, limit);
-		// Terminate the Graph database service
+		printTestGraph();
+
 		closeDB();
-		// Test Block
-		//createDB("D:/RIT/2019 Fall/7 Social Network Analysis/DummyDB");
-		//auxDBPath = "C:/Users/zli18/Desktop/auxDB";
-//		auxDBPath = "/home/sapan/Documents/CSCI-723-GraphDB/TryGraphs2";
-//		createDB("/home/sapan/Documents/CSCI-723-GraphDB/Assignment7/TryGraphs");
-//		KCoreDecomposition(2, 1, 1);
-//		System.out.println("Third");
-//		printTestGraph();
 
 		System.out.println("Job Completed!");
 		closeDB();
 
-		
 	}
 	
 	// To be implemented by Sapan
 	public static void KCoreDecomposition(int mink, int limit, int step) {
+		System.out.println("KCoreDecomposition");
 		Result res = graphDB.execute("MATCH (v) "
 				+ "WITH size((v)--()) as degree, ID(v) as id "
 				+ "RETURN degree,id ");
+		System.out.println("Got node id and degree");
 		Set<Long> W = new HashSet<>();		
 		while(res.hasNext()) {
 			// reference to query result
@@ -228,28 +237,24 @@ public class EMCore {
 			if(degree == 1) {
 				graphDB.execute("MATCH (v) "
 						+ "WHERE ID(v)=$id "
-						+ "SET v.KClass = $degree, v.KClassUpperBound = null, v.deposit = $p "
-						+ "RETURN v",parameter);
+						+ "SET v.KClass = $degree, v.KClassUpperBound = null, v.deposit = $p, v.degree = $degree",parameter);
+				tx.success();
 			}
 			else {
 				graphDB.execute("MATCH (v) "
 						+ "WHERE ID(v)=$id "
-						+ "SET v.KClass = null, v.KClassUpperBound = $degree, v.deposit = $p "
-						+ "RETURN v",parameter);
+						+ "SET v.KClass = null, v.KClassUpperBound = $degree, v.deposit = $p, v.degree = $degree ",parameter);
+				tx.success();
 				W.add(id);
 			}
 		}
-		tx.success();
-//		System.out.println("First");
-//		printTestGraph();
+		System.out.println("Calling Refine Upper Bound 1 " + W.size());
 
 		refinedUpperBound(W,limit);
-//		System.out.println("Second");
-//		printTestGraph();
+		System.out.println("Returned");
 
 		long Ku = 0;
 		do {
-//			printTestGraph();
 			Ku = calculateKUpper();
 			long Kl = Ku - step;
 			W = new HashSet<>();
@@ -279,7 +284,6 @@ public class EMCore {
 				auxTx.close();
 				auxDB.shutdown();
 				
-//				deleteDirectory(new File(auxDBPath)); 
 			}
 			for(long v: W) {
 				parameter.put("id",v);
@@ -288,17 +292,17 @@ public class EMCore {
 				if(Kc.containsKey(v)) {
 					graphDB.execute("MATCH (v) "
 							+ "WHERE ID(v)=$id "
-							+ "SET v.KClass = $kcl, v.KClassUpperBound = null "
-							+ "RETURN v",parameter);
+							+ "SET v.KClass = $kcl, v.KClassUpperBound = null ",parameter);
+					tx.success();
 				}
 				else {
 					graphDB.execute("MATCH (v) "
 							+ "WHERE ID(v)=$id "
-							+ "SET v.KClassUpperBound = $kcub "
-							+ "RETURN v",parameter);
+							+ "SET v.KClassUpperBound = $kcub ",parameter);
+					tx.success();
 					M.add(v);
+					
 				}
-				tx.success();
 			}
 			parameter.clear();
 			for(long v: Kc.keySet()) {
@@ -313,13 +317,14 @@ public class EMCore {
 					parameter.put("p", (long)n_prop.get("p")+1);
 					graphDB.execute("MATCH (v) "
 							+ "WHERE ID(v) = $id "
-							+ "SET v.deposit = $p "
-							+ "RETURN v",parameter);
+							+ "SET v.deposit = $p ",parameter);
+					tx.success();
 					if(n_prop.get("k") != null) {
 						M.add(n);
 					}
 				}
 			}
+			System.out.println("Refine Upper Bound 2");
 			refinedUpperBound(M,limit);
 
 		}
@@ -428,7 +433,7 @@ public class EMCore {
 				kcMap.put(vid, i);
 			}
 		}
-		
+		System.out.println("AuxDBCreated");
 		return kcMap;
 	}
 	
@@ -436,10 +441,11 @@ public class EMCore {
 		Map<String,Object> par = new HashMap<>();
 		par.put("id",id);
 		Result res = graphDB.execute("MATCH (v) "
-				+ "WITH size((v)--()) as d, coalesce(v.KClassUpperBound,v.KClass) as k, v.deposit as p "
-				+ "WHERE ID(v) = $id "
+				+ "WITH ID(v) as id, v.degree as d, coalesce(v.KClassUpperBound,v.KClass) as k, v.deposit as p "
+				+ "WHERE id = $id "
 				+ "RETURN k,p,d", par);
 		Map<String,Object> resMap = new HashMap<>(res.next());
+//		System.out.println("Return node properties " + id);
 		return resMap;
 	}
 	
@@ -464,6 +470,7 @@ public class EMCore {
 			if(max < k)
 				max = k;
 		}
+		System.out.println("KUpper calculated");
 		return max;
 	}
 
