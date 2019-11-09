@@ -194,10 +194,8 @@ public class EMCore {
 	public static void main(String[] args) 
 	{
 		// Input arguments from the main function
-//		srcDBPath = args[0];
-//		auxDBPath = args[1];
-		srcDBPath = "/home/sapan/Documents/CSCI-723-GraphDB/Assignment7/EnronDB";
-		auxDBPath= "/home/sapan/Documents/CSCI-723-GraphDB/AuxDB";
+		srcDBPath = args[0];
+		auxDBPath = args[1];
 		int KClass = Integer.parseInt(args[2]);
 		int limit = Integer.parseInt(args[3]);
 		float p = Float.parseFloat(args[4]);
@@ -270,7 +268,7 @@ public class EMCore {
 				// TODO 
 				// Create graph and call computecore function
 				createAuxGraphDB(W);
-				GraphDatabaseService auxDB = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(new File(auxDBPath))
+				GraphDatabaseService auxDB = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(new File(auxDBPath + "/innerDir/DB"))
 						.setConfig(GraphDatabaseSettings.pagecache_memory, "2048M" )
 						.setConfig(GraphDatabaseSettings.string_block_size, "60" )
 						.setConfig(GraphDatabaseSettings.array_block_size, "300" )
@@ -279,7 +277,7 @@ public class EMCore {
 				Kc = ComputeCore(auxDB, Kl, Ku);
 				auxTx.close();
 				auxDB.shutdown();
-				
+				deleteDirectory(new File(auxDBPath + "/innerDir"));
 			}
 			for(long v: W) {
 				parameter.put("id",v);
@@ -337,7 +335,7 @@ public class EMCore {
 		
 		try 
 		{
-			inserter = BatchInserters.inserter(new File(auxDBPath));
+			inserter = BatchInserters.inserter(new File(auxDBPath+"/innerDir/DB"));
 			for (Long w : W)
 			{
 				if(!inserter.nodeExists(w))
@@ -467,4 +465,14 @@ public class EMCore {
 		return max;
 	}
 
+	public static boolean deleteDirectory(File directoryToBeDeleted) {
+	    File[] allContents = directoryToBeDeleted.listFiles();
+	    if (allContents != null) {
+	        for (File file : allContents) {
+	            deleteDirectory(file);
+	        }
+	    }
+	    return directoryToBeDeleted.delete();
+	}
+	
 }
