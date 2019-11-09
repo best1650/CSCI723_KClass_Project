@@ -48,6 +48,7 @@ public class DMP {
 		
 		TreeMap<Long, ArrayList<Long>> sorted = new TreeMap<Long, ArrayList<Long>>(); 
 		sorted.putAll(hMap);
+						
 		int curRank = 0;
 		for (Map.Entry<Long, ArrayList<Long>> entry : sorted.entrySet())  
 		{
@@ -86,29 +87,37 @@ public class DMP {
 			d = (Long)resMap.get("d");
 			k = (Long)resMap.get("k");
 			
-			ArrayList<Long> dList, kList;
+			ArrayList<Long> dList;
+			ArrayList<Long> kList;
 			
-			if (dMap.containsKey(vid))
+			if (dMap.containsKey(d))
 			{
-				dList = dMap.get(vid);
-				kList = kMap.get(vid);
+				dList = new ArrayList<Long>(dMap.get(d));
 			}
 			else
 			{
 				dList = new ArrayList<Long>();
+			}
+			
+			if(kMap.containsKey(k))
+			{
+				kList = new ArrayList<Long>(kMap.get(k));
+			}
+			else
+			{
 				kList = new ArrayList<Long>();
 			}
 			
-			dList.add(d);
-			kList.add(k);
+			dList.add(vid);
+			kList.add(vid);
 			
 			// Insert d and k in an array list
-			dMap.put(vid, dList);
-			kMap.put(vid, kList);
+			dMap.put(d, dList);
+			kMap.put(k, kList);
 			
 			vList.add(vid);
 		}
-		
+				
 		// Compute the rank for Degree and K
 		HashMap<Long, Double> dRank = computeRank(dMap);
 		HashMap<Long, Double> kRank = computeRank(kMap);
@@ -125,14 +134,33 @@ public class DMP {
 		}
 	}
 	
+	public static void checkDMP()
+	{
+		System.out.println("Check the first 10 DMP value");
+		Result res = graphDB.execute("MATCH (v) RETURN ID(v) as id, v.DMP as DMP LIMIT 10");
+		while(res.hasNext()) 
+		{
+			Map<String,Object> resMap = res.next();
+			long vid = (Long)resMap.get("id");
+			double dmp = (Double)resMap.get("DMP");
+			
+			System.out.println("vid:" + vid + ", " + "dmp:" + dmp);
+		}
+	}
+	
 	// Main Function
 	public static void main(String[] args) 
 	{
 		// Only Takes in the Graph Database path
+		System.out.println("Job Started!");
+		
 		String neo4jPath = args[0];
 		createDB(neo4jPath);
 		computeDMP();
+		checkDMP();
 		closeDB();
+		
+		System.out.println("Job Completed!");
 	}
 
 }
